@@ -5,13 +5,13 @@ Beautiful HTML security reports from Lynis scans. Simple. Local. Fast.
 ## Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/YOUR_REPO/main/install | bash
+curl -sSL https://raw.githubusercontent.com/saitama142/LYNIS-SECURITY-REPORTER-/main/install | bash
 ```
 
 Or manual:
 ```bash
-git clone https://github.com/YOUR_REPO/lynis-reporter.git
-cd lynis-reporter
+git clone https://github.com/saitama142/LYNIS-SECURITY-REPORTER-.git
+cd LYNIS-SECURITY-REPORTER-
 ./install
 ```
 

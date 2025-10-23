@@ -1,6 +1,6 @@
 #!/bin/bash
 # Lynis Reporter - One Command Install
-# Usage: curl -sSL https://raw.githubusercontent.com/YOUR_REPO/main/install | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/saitama142/LYNIS-SECURITY-REPORTER-/main/install | bash
 
 set -e
 
@@ -22,7 +22,7 @@ else
         git pull -q 2>/dev/null || true
     else
         echo "→ Cloning repository..."
-        git clone https://github.com/YOUR_REPO/lynis-reporter.git "$DIR" -q
+        git clone https://github.com/saitama142/LYNIS-SECURITY-REPORTER-.git "$DIR" -q
         cd "$DIR"
     fi
 fi
