@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Generated reports and data
+reports/*.html
+data/*.db
+data/*.db-*
+logs/*.log
+
+# Keep directory structure
+!reports/.gitkeep
+!data/.gitkeep
+!logs/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (keep example)
+config.yaml

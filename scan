@@ -1,0 +1,43 @@
+#!/bin/bash
+# One-command security scan + report
+# Usage: ./scan [quick]
+
+set -e
+
+# Get local IP
+IP=$(hostname -I | awk '{print $1}')
+[ -z "$IP" ] && IP="localhost"
+
+MODE="${1:-full}"
+
+echo
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║        🔒  LYNIS SECURITY REPORTER                      ║"
+echo "╚══════════════════════════════════════════════════════════╝"
+echo
+
+cd "$(dirname "$0")"
+
+# Check dependencies
+if ! command -v lynis &> /dev/null; then
+    echo "📦 Installing Lynis..."
+    sudo apt update -qq && sudo apt install -y lynis
+    echo "✅ Lynis installed"
+fi
+
+# Run scan
+if [ "$MODE" = "quick" ]; then
+    echo "🔍 Running quick scan (~30 seconds)..."
+    sudo lynis audit system --quick --quiet 2>/dev/null || true
+else
+    echo "� Running full security scan (~2 minutes)..."
+    sudo lynis audit system --quiet 2>/dev/null || true
+fi
+
+# Generate report  
+echo
+./lynis-report generate
+
+echo
+echo "✅ Done! Server running at http://$IP:35480/"
+echo

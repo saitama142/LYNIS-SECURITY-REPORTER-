@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+"""
+Lynis Reporter - Beautiful Security Reports
+Dead simple CLI tool
+"""
+
+import sys
+import os
+import subprocess
+import argparse
+
+def check_lynis():
+    """Check if Lynis is installed"""
+    return subprocess.run(['which', 'lynis'], capture_output=True).returncode == 0
+
+def install_lynis():
+    """Offer to install Lynis"""
+    print("📦 Lynis not found!")
+    print()
+    response = input("Install Lynis now? (y/n): ").strip().lower()
+    if response == 'y':
+        print("\n⏳ Installing Lynis...")
+        try:
+            subprocess.run(['sudo', 'apt', 'update', '-qq'], check=True)
+            subprocess.run(['sudo', 'apt', 'install', '-y', 'lynis'], check=True)
+            print("✅ Lynis installed!")
+            return True
+        except:
+            print("❌ Installation failed. Install manually: sudo apt install lynis")
+            return False
+    return False
+
+def run_scan(quick=False):
+    """Run Lynis security scan"""
+    print("\n� Running security scan...")
+    print("⏱️  This takes ~2 minutes for full scan, ~30 seconds for quick scan\n")
+    
+    cmd = ['sudo', 'lynis', 'audit', 'system']
+    if quick:
+        cmd.append('--quick')
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        print("✅ Scan complete!\n")
+        return True
+    except Exception as e:
+        print(f"❌ Scan failed: {e}")
+        return False
+
+def generate_report():
+    """Generate HTML report"""
+    print("📊 Generating report...\n")
+    
+    # Setup path
+    import sys as system_module
+    system_module.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    
+    try:
+        from lynis_reporter.parser import LynisParser
+        from lynis_reporter.generator import ReportGenerator
+        from lynis_reporter.storage import StorageManager
+        from datetime import datetime
+        
+        # Read Lynis report
+        print("  → Reading Lynis data...")
+        result = subprocess.run(['sudo', 'cat', '/var/log/lynis-report.dat'], 
+                              capture_output=True, text=True)
+        if result.returncode != 0:
+            print("❌ Cannot read Lynis report!")
+            print("   Run a scan first: sudo lynis audit system")
+            return None
+        
+        # Parse
+        parser = LynisParser()
+        parser._parse_raw_content(result.stdout)
+        parser._parse_data()
+        data = parser.parsed_data
+        
+        hostname = data['system_info']['hostname']
+        score = data['metrics']['hardening_index']
+        tests = data['metrics']['tests_performed']
+        suggestions = len(data['suggestions'])
+        
+        print(f"  ✓ Host: {hostname}")
+        print(f"  ✓ Security Score: {score}/100")
+        print(f"  ✓ Tests: {tests}")
+        print(f"  ✓ Suggestions: {suggestions}")
+        print()
+        
+        # Save to database
+        print("  → Saving to database...")
+        storage = StorageManager('./data/lynis_reports.db')
+        storage.store_scan(data, is_local=True)
+        history = storage.get_historical_scans(hostname, limit=10)
+        
+        # Generate HTML
+        print("  → Creating HTML report...")
+        generator = ReportGenerator()
+        
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        output_dir = './reports'
+        os.makedirs(output_dir, exist_ok=True)
+        
+        report_file = f"{output_dir}/report-{hostname}-{timestamp}.html"
+        generator.generate_report(data, history, report_file)
+        
+        return report_file
+        
+    except ImportError as e:
+        print(f"❌ Missing dependency: {e}")
+        print("\n📦 Install dependencies:")
+        print("   pip3 install --user plotly pandas jinja2 pyyaml paramiko")
+        return None
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def start_server(report_file):
+    """Start web server to view report"""
+    # Get local IP
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+    except:
+        ip = "localhost"
+    
+    port = 35480
+    
+    print()
+    print("=" * 60)
+    print("✅ REPORT READY!")
+    print("=" * 60)
+    print()
+    print(f"📄 Report: {report_file}")
+    print()
+    print("🌐 View in browser:")
+    print(f"   http://{ip}:{port}/")
+    print()
+    
+    # Auto-start server if running interactively
+    if sys.stdin.isatty():
+        response = input("Start web server? (Y/n): ").strip().lower()
+        if response in ['', 'y', 'yes']:
+            print()
+            print(f"🚀 Server starting on port {port}...")
+            print(f"   Open: http://{ip}:{port}/")
+            print()
+            print("   Press Ctrl+C to stop")
+            print()
+            
+            # Kill any existing server
+            subprocess.run(['pkill', '-f', f'python3 -m http.server {port}'], 
+                         capture_output=True)
+            
+            # Start server
+            try:
+                subprocess.run(['python3', '-m', 'http.server', str(port), 
+                              '--directory', './reports'])
+            except KeyboardInterrupt:
+                print("\n\n👋 Server stopped!")
+
+def interactive_mode():
+    """Interactive CLI mode"""
+    print()
+    print("╔" + "═" * 58 + "╗")
+    print("║" + "  🔒  LYNIS SECURITY REPORTER".center(58) + "║")
+    print("╚" + "═" * 58 + "╝")
+    print()
+    
+    # Check Lynis
+    if not check_lynis():
+        if not install_lynis():
+            sys.exit(1)
+    
+    print()
+    print("Choose an option:")
+    print()
+    print("  1  →  Full scan + report (recommended)")
+    print("  2  →  Quick scan + report (faster)")  
+    print("  3  →  Just generate report (already scanned)")
+    print("  4  →  Exit")
+    print()
+    
+    choice = input("Enter choice [1-4]: ").strip()
+    print()
+    
+    if choice == '4':
+        print("👋 Goodbye!")
+        sys.exit(0)
+    
+    if choice not in ['1', '2', '3']:
+        print("❌ Invalid choice!")
+        sys.exit(1)
+    
+    # Run scan if needed
+    if choice in ['1', '2']:
+        if not run_scan(quick=(choice == '2')):
+            sys.exit(1)
+    
+    # Generate report
+    report_file = generate_report()
+    if not report_file:
+        sys.exit(1)
+    
+    # Start server
+    start_server(report_file)
+
+def main():
+    """Main entry point"""
+    parser = argparse.ArgumentParser(
+        description='🔒 Lynis Reporter - Beautiful Security Reports',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  lynis-report                    Interactive mode (easiest)
+  lynis-report scan               Run full scan + generate report
+  lynis-report quick              Run quick scan + generate report
+  lynis-report generate           Just generate report from existing scan
+  lynis-report serve              Just start web server
+
+No arguments? Interactive mode with menu!
+        """
+    )
+    
+    parser.add_argument('command', nargs='?', 
+                       choices=['scan', 'quick', 'generate', 'serve'],
+                       help='Command to run')
+    
+    args = parser.parse_args()
+    
+    # No command = interactive mode
+    if not args.command:
+        interactive_mode()
+        return
+    
+    # Check Lynis for scan commands
+    if args.command in ['scan', 'quick']:
+        if not check_lynis():
+            print("❌ Lynis not installed!")
+            print("Install: sudo apt install lynis")
+            sys.exit(1)
+        
+        if not run_scan(quick=(args.command == 'quick')):
+            sys.exit(1)
+    
+    # Generate report
+    if args.command in ['scan', 'quick', 'generate']:
+        report_file = generate_report()
+        if not report_file:
+            sys.exit(1)
+        start_server(report_file)
+    
+    # Just serve
+    if args.command == 'serve':
+        reports = sorted([f for f in os.listdir('./reports') if f.endswith('.html')])
+        if not reports:
+            print("❌ No reports found! Generate one first.")
+            sys.exit(1)
+        
+        latest = f"./reports/{reports[-1]}"
+        print(f"\n📄 Latest report: {reports[-1]}\n")
+        start_server(latest)
+
+if __name__ == '__main__':
+    main()

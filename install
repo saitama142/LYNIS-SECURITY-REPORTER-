@@ -1,0 +1,58 @@
+#!/bin/bash
+# Lynis Reporter - One Command Install
+# Usage: curl -sSL https://raw.githubusercontent.com/YOUR_REPO/main/install | bash
+
+set -e
+
+echo
+echo "╔═══════════════════════════════════════════════════╗"
+echo "║     🔒  LYNIS REPORTER - INSTALLER               ║"
+echo "╚═══════════════════════════════════════════════════╝"
+echo
+
+# Check if already in the repo
+if [ -f "lynis-report" ]; then
+    DIR="$(pwd)"
+    echo "✓ Already in lynis-reporter directory"
+else
+    DIR="$HOME/lynis-reporter"
+    if [ -d "$DIR" ]; then
+        echo "! Directory exists. Updating..."
+        cd "$DIR"
+        git pull -q 2>/dev/null || true
+    else
+        echo "→ Cloning repository..."
+        git clone https://github.com/YOUR_REPO/lynis-reporter.git "$DIR" -q
+        cd "$DIR"
+    fi
+fi
+
+echo "→ Installing system dependencies..."
+sudo apt update -qq
+sudo apt install -y lynis python3-pip python3-yaml python3-jinja2 -qq 2>/dev/null
+
+echo "→ Installing Python packages..."
+pip3 install --user -q plotly pandas paramiko 2>/dev/null || true
+
+echo "→ Setting up directories..."
+mkdir -p reports data logs
+
+echo "→ Making scripts executable..."
+chmod +x lynis-report scan report
+
+echo
+echo "╔═══════════════════════════════════════════════════╗"
+echo "║              ✅  INSTALLATION COMPLETE            ║"
+echo "╚═══════════════════════════════════════════════════╝"
+echo
+echo "📖 Quick Commands:"
+echo
+echo "   ./scan             → Run scan + generate report"
+echo "   ./scan quick       → Quick scan (30 seconds)"
+echo "   ./report           → Interactive menu"
+echo "   ./report generate  → Just generate from existing scan"
+echo
+echo "🚀 Try it now:"
+echo "   cd $DIR"
+echo "   ./scan"
+echo

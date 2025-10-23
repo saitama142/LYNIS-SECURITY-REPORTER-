@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report_title }}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    
+    <style>
+        :root {
+            --primary-color: {{ config.report_styling.colors.primary if config else '#0066cc' }};
+            --success-color: {{ config.report_styling.colors.success if config else '#28a745' }};
+            --warning-color: {{ config.report_styling.colors.warning if config else '#ffc107' }};
+            --danger-color: {{ config.report_styling.colors.danger if config else '#dc3545' }};
+            --info-color: {{ config.report_styling.colors.info if config else '#17a2b8' }};
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        
+        .main-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #004a99 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .metric-card {
+            transition: transform 0.2s;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        
+        .metric-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .badge-critical {
+            background-color: var(--danger-color);
+        }
+        
+        .badge-high {
+            background-color: #fd7e14;
+        }
+        
+        .badge-medium {
+            background-color: var(--warning-color);
+            color: #000;
+        }
+        
+        .badge-low {
+            background-color: var(--info-color);
+        }
+        
+        .section-header {
+            border-left: 4px solid var(--primary-color);
+            padding-left: 1rem;
+            margin: 2rem 0 1rem 0;
+        }
+        
+        .chart-container {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .table {
+            background: white;
+        }
+        
+        .table thead {
+            background-color: #f8f9fa;
+        }
+        
+        .collapsible-content {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .dark-mode-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        /* Dark mode styles */
+        body.dark-mode {
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+        }
+        
+        body.dark-mode .card {
+            background-color: #2d2d2d;
+            color: #e0e0e0;
+        }
+        
+        body.dark-mode .table {
+            background-color: #2d2d2d;
+            color: #e0e0e0;
+        }
+        
+        body.dark-mode .table thead {
+            background-color: #3a3a3a;
+        }
+        
+        body.dark-mode .chart-container {
+            background-color: #2d2d2d;
+        }
+        
+        /* Print styles */
+        @media print {
+            .dark-mode-toggle,
+            .navbar,
+            .no-print {
+                display: none !important;
+            }
+            
+            body {
+                background-color: white !important;
+                color: black !important;
+            }
+            
+            .card, .chart-container {
+                box-shadow: none !important;
+                page-break-inside: avoid;
+            }
+            
+            .main-header {
+                background: var(--primary-color) !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-shield-alt"></i> Lynis Reporter
+            </a>
+            {% if config and config.report_styling.dark_mode_toggle %}
+            <button class="btn btn-outline-light btn-sm no-print" id="darkModeToggle">
+                <i class="fas fa-moon"></i> Dark Mode
+            </button>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Main Header -->
+    <div class="main-header">
+        <div class="container">
+            <h1 class="display-4">
+                <i class="fas fa-file-alt"></i> {{ report_title }}
+            </h1>
+            <p class="lead mb-0">
+                Generated on {{ generated_date }}
+            </p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mb-5">
+        
+        <!-- Executive Summary -->
+        <section id="executive-summary">
+            <h2 class="section-header">
+                <i class="fas fa-chart-line"></i> Executive Summary
+            </h2>
+            
+            <div class="row">
+                <!-- Hardening Index -->
+                <div class="col-md-3 mb-4">
+                    <div class="card metric-card text-center">
+                        <div class="card-body">
+                            <div class="metric-label">Hardening Index</div>
+                            <div class="metric-value" style="color: {% if metrics.hardening_index >= 80 %}var(--success-color){% elif metrics.hardening_index >= 60 %}var(--warning-color){% else %}var(--danger-color){% endif %}">
+                                {{ metrics.hardening_index }}
+                            </div>
+                            <small class="text-muted">/ 100</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Warnings -->
+                <div class="col-md-3 mb-4">
+                    <div class="card metric-card text-center">
+                        <div class="card-body">
+                            <div class="metric-label">Warnings</div>
+                            <div class="metric-value text-danger">
+                                {{ warnings|length }}
+                            </div>
+                            <small class="text-muted">Issues Found</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Suggestions -->
+                <div class="col-md-3 mb-4">
+                    <div class="card metric-card text-center">
+                        <div class="card-body">
+                            <div class="metric-label">Suggestions</div>
+                            <div class="metric-value text-warning">
+                                {{ suggestions|length }}
+                            </div>
+                            <small class="text-muted">Improvements</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tests Performed -->
+                <div class="col-md-3 mb-4">
+                    <div class="card metric-card text-center">
+                        <div class="card-body">
+                            <div class="metric-label">Tests Performed</div>
+                            <div class="metric-value text-primary">
+                                {{ metrics.tests_performed }}
+                            </div>
+                            <small class="text-muted">{{ metrics.tests_skipped }} Skipped</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- System Information -->
+        <section id="system-info" class="mt-5">
+            <h2 class="section-header">
+                <i class="fas fa-server"></i> System Information
+            </h2>
+            
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th width="40%">Hostname:</th>
+                                    <td>{{ system_info.hostname }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Operating System:</th>
+                                    <td>{{ system_info.os }} {{ system_info.os_version }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Kernel Version:</th>
+                                    <td>{{ system_info.kernel_version }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th width="40%">Lynis Version:</th>
+                                    <td>{{ system_info.lynis_version }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Scan Date:</th>
+                                    <td>{{ system_info.report_datetime }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Report Version:</th>
+                                    <td>{{ system_info.report_version or 'N/A' }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section id="metrics-dashboard" class="mt-5">
+            <h2 class="section-header">
+                <i class="fas fa-chart-bar"></i> Security Metrics Dashboard
+            </h2>
+            
+            <div class="row">
+                {% if charts.hardening_gauge %}
+                <div class="col-md-6 mb-4">
+                    <div class="chart-container">
+                        {{ charts.hardening_gauge|safe }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if charts.test_coverage %}
+                <div class="col-md-6 mb-4">
+                    <div class="chart-container">
+                        {{ charts.test_coverage|safe }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="row">
+                {% if charts.severity_distribution %}
+                <div class="col-md-6 mb-4">
+                    <div class="chart-container">
+                        {{ charts.severity_distribution|safe }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if charts.category_breakdown %}
+                <div class="col-md-6 mb-4">
+                    <div class="chart-container">
+                        {{ charts.category_breakdown|safe }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if has_history and charts.hardening_trend %}
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="chart-container">
+                        {{ charts.hardening_trend|safe }}
+                    </div>
+                </div>
+                
+                {% if charts.warnings_trend %}
+                <div class="col-md-6 mb-4">
+                    <div class="chart-container">
+                        {{ charts.warnings_trend|safe }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Warnings Section -->
+        <section id="warnings" class="mt-5">
+            <h2 class="section-header">
+                <i class="fas fa-exclamation-triangle"></i> Security Warnings ({{ warnings|length }})
+            </h2>
+            
+            {% if warnings %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table id="warningsTable" class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Severity</th>
+                                    <th>Test ID</th>
+                                    <th>Component</th>
+                                    <th>Message</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for warning in warnings %}
+                                <tr>
+                                    <td>
+                                        <span class="badge badge-{{ warning.severity }}">
+                                            {{ warning.severity|upper }}
+                                        </span>
+                                    </td>
+                                    <td><code>{{ warning.test_id }}</code></td>
+                                    <td>{{ warning.component or 'N/A' }}</td>
+                                    <td>{{ warning.message }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> No warnings found! Your system security looks good.
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Suggestions Section -->
+        <section id="suggestions" class="mt-5">
+            <h2 class="section-header">
+                <i class="fas fa-lightbulb"></i> Security Suggestions ({{ suggestions|length }})
+            </h2>
+            
+            {% if suggestions %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table id="suggestionsTable" class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Priority</th>
+                                    <th>Test ID</th>
+                                    <th>Component</th>
+                                    <th>Suggestion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for suggestion in suggestions %}
+                                <tr>
+                                    <td>
+                                        <span class="badge {% if suggestion.priority == 'high' %}badge-high{% else %}badge-medium{% endif %}">
+                                            {{ suggestion.priority|upper }}
+                                        </span>
+                                    </td>
+                                    <td><code>{{ suggestion.test_id }}</code></td>
+                                    <td>{{ suggestion.component or 'N/A' }}</td>
+                                    <td>{{ suggestion.message }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No suggestions available.
+            </div>
+            {% endif %}
+        </section>
+
+        {% if remediation %}
+        <!-- Remediation Guide -->
+        <section id="remediation" class="mt-5">
+            <h2 class="section-header">
+                <i class="fas fa-tools"></i> Prioritized Remediation Guide
+            </h2>
+            
+            <div class="card">
+                <div class="card-body">
+                    <p class="text-muted">Top priority security actions to take:</p>
+                    
+                    {% for item in remediation %}
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <strong>{{ loop.index }}. {{ item.test_id }}</strong>
+                            <span class="badge badge-{{ item.severity if item.type == 'warning' else 'high' }} float-end">
+                                {{ item.type|upper }}
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">{{ item.message }}</p>
+                            <div class="alert alert-light mb-0">
+                                <strong>Remediation:</strong><br>
+                                <code>{{ item.command }}</code>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if comparison %}
+        <!-- Historical Comparison -->
+        <section id="comparison" class="mt-5">
+            <h2 class="section-header">
+                <i class="fas fa-history"></i> Historical Comparison
+            </h2>
+            
+            <div class="card">
+                <div class="card-body">
+                    <p>Comparison with previous scan ({{ comparison.previous_date }}):</p>
+                    
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <h5>Hardening Index</h5>
+                            <div class="metric-value {% if comparison.hardening_delta > 0 %}text-success{% elif comparison.hardening_delta < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                {% if comparison.hardening_delta > 0 %}+{% endif %}{{ comparison.hardening_delta }}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h5>Warnings</h5>
+                            <div class="metric-value {% if comparison.warnings_delta < 0 %}text-success{% elif comparison.warnings_delta > 0 %}text-danger{% else %}text-muted{% endif %}">
+                                {% if comparison.warnings_delta > 0 %}+{% endif %}{{ comparison.warnings_delta }}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h5>Suggestions</h5>
+                            <div class="metric-value {% if comparison.suggestions_delta < 0 %}text-success{% elif comparison.suggestions_delta > 0 %}text-warning{% else %}text-muted{% endif %}">
+                                {% if comparison.suggestions_delta > 0 %}+{% endif %}{{ comparison.suggestions_delta }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white text-center py-4 mt-5">
+        <div class="container">
+            <p class="mb-0">
+                Generated by <strong>Lynis Reporter</strong> v1.0.0 | 
+                <i class="fas fa-calendar"></i> {{ generated_date }}
+            </p>
+            {% if config and config.report_styling.company_name %}
+            <p class="mb-0 mt-2">
+                {{ config.report_styling.company_name }}
+            </p>
+            {% endif %}
+        </div>
+    </footer>
+
+    <!-- Dark Mode Toggle Button -->
+    {% if config and config.report_styling.dark_mode_toggle %}
+    <button class="btn btn-dark dark-mode-toggle rounded-circle no-print" id="darkModeBtn" title="Toggle Dark Mode">
+        <i class="fas fa-moon"></i>
+    </button>
+    {% endif %}
+
+    <!-- JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            // Initialize DataTables
+            $('#warningsTable').DataTable({
+                order: [[0, 'asc']],
+                pageLength: 25
+            });
+            
+            $('#suggestionsTable').DataTable({
+                order: [[0, 'asc']],
+                pageLength: 25
+            });
+
+            // Dark Mode Toggle
+            {% if config and config.report_styling.dark_mode_toggle %}
+            const darkModeToggle = $('#darkModeToggle, #darkModeBtn');
+            const body = $('body');
+            
+            // Check for saved preference
+            if (localStorage.getItem('darkMode') === 'enabled') {
+                body.addClass('dark-mode');
+            }
+            
+            darkModeToggle.on('click', function() {
+                body.toggleClass('dark-mode');
+                
+                if (body.hasClass('dark-mode')) {
+                    localStorage.setItem('darkMode', 'enabled');
+                } else {
+                    localStorage.setItem('darkMode', 'disabled');
+                }
+            });
+            {% endif %}
+        });
+    </script>
+</body>
+</html>
