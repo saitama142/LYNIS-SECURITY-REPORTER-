@@ -8,6 +8,16 @@ import sys
 import os
 import subprocess
 import argparse
+import socket
+
+def is_port_in_use(port):
+    """Check if a port is already in use"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('', port))
+            return False
+        except OSError:
+            return True
 
 def check_lynis():
     """Check if Lynis is installed"""
@@ -147,15 +157,39 @@ def start_server(report_file):
         response = input("Start web server? (Y/n): ").strip().lower()
         if response in ['', 'y', 'yes']:
             print()
+            
+            # Check if port is in use
+            if is_port_in_use(port):
+                print(f"⚠️  Port {port} is already in use!")
+                print()
+                alt_response = input("Kill existing process and start new server? (Y/n): ").strip().lower()
+                if alt_response not in ['', 'y', 'yes']:
+                    print()
+                    print(f"📂 Open report manually:")
+                    print(f"   file://{os.path.abspath(report_file)}")
+                    return
+                
+                # Kill process using the port
+                subprocess.run(['fuser', '-k', f'{port}/tcp'], 
+                             capture_output=True, stderr=subprocess.DEVNULL)
+                
+                # Wait for port to be released
+                import time
+                time.sleep(1)
+                
+                # Check again
+                if is_port_in_use(port):
+                    print()
+                    print(f"⚠️  Could not free port {port}. Please close other applications using this port.")
+                    print(f"📂 Open report manually:")
+                    print(f"   file://{os.path.abspath(report_file)}")
+                    return
+            
             print(f"🚀 Server starting on port {port}...")
             print(f"   Open: http://{ip}:{port}/")
             print()
             print("   Press Ctrl+C to stop")
             print()
-            
-            # Kill any existing server
-            subprocess.run(['pkill', '-f', f'python3 -m http.server {port}'], 
-                         capture_output=True)
             
             # Start server
             try:
@@ -163,6 +197,10 @@ def start_server(report_file):
                               '--directory', './reports'])
             except KeyboardInterrupt:
                 print("\n\n👋 Server stopped!")
+            except Exception as e:
+                print(f"\n⚠️  Server error: {e}")
+                print(f"📂 Open report manually:")
+                print(f"   file://{os.path.abspath(report_file)}")
 
 def interactive_mode():
     """Interactive CLI mode"""
