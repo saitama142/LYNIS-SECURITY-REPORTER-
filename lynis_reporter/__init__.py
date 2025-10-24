@@ -3,7 +3,7 @@ Lynis Reporter - Beautiful HTML Security Reports
 Simple, local, fast.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __license__ = "MIT"
 
 from .parser import LynisParser

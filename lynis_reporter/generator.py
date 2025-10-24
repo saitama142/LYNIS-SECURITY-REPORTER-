@@ -118,9 +118,12 @@ class ReportGenerator:
         # Get remediation guide
         remediation = self._generate_remediation_guide(warnings, suggestions)
 
+        from lynis_reporter import __version__
+
         context = {
             'report_title': f"Lynis Security Report - {system_info.get('hostname', 'Unknown')}",
             'generated_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'tool_version': __version__,
             'system_info': system_info,
             'metrics': metrics,
             'warnings': sorted(warnings, key=lambda x: self._severity_sort_key(x.get('severity', 'medium'))),
